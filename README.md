@@ -5,6 +5,13 @@ An PoC of building live ISOs from container images.
 Run:
 
 ```
-just build bazzite
-just build kinoite
+just container bazzite
+just container kinoite
+```
+
+Then:
+
+```
+just iso bazzite
+just iso kinoite
 ```
