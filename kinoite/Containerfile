@@ -1,20 +1,5 @@
+# run with --cap-add sys_admin --security-opt label=disable
+
 FROM quay.io/fedora-ostree-desktops/kinoite:43
 
-
-RUN dnf install -y dracut-live xorriso isomd5sum libblockdev-{btrfs,lvm,dm} livesys-scripts squashfs-tools
-
-COPY ./regen-dracut.sh /regen-dracut.sh
-RUN /regen-dracut.sh
-
-RUN sed -i "s/^livesys_session=.*/livesys_session=kde/" /etc/sysconfig/livesys
-
-RUN systemctl enable livesys.service livesys-late.service
-
-RUN mkdir -p /boot/efi && cp -av /usr/lib/bootupd/updates/EFI /boot/efi/ && cp /boot/efi/EFI/fedora/grubx64.efi /boot/efi/EFI/fedora/gcdx64.efi
-
-COPY ./src /src
-RUN mkdir -p /etc/flatpak/remotes.d && \
-    curl --retry 3 -Lo /etc/flatpak/remotes.d/flathub.flatpakrepo https://dl.flathub.org/repo/flathub.flatpakrepo && \
-    cat /src/flatpaks | xargs flatpak install -y --noninteractive
-
-RUN dnf install -y anaconda-live anaconda-install-env-deps @anaconda-tools
+RUN --mount=type=bind,source=src,target=/src /src/build.sh
