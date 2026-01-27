@@ -44,20 +44,20 @@ jobs:
       - name: Fix output ownership
         run: sudo chown -R $USER:$USER output/
 
-      - name: Upload ISO to Hetzner Object Storage
+      - name: Upload ISO to Backblaze B2
         if: github.event_name == 'push'
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.HETZNER_S3_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.HETZNER_S3_SECRET_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
         run: |
           ISO_FILE=$(ls output/*.iso)
           ISO_NAME="${{ matrix.container }}-${{ github.sha }}.iso"
 
           aws s3 cp "$ISO_FILE" \
             "s3://bootc-isos/$ISO_NAME" \
-            --endpoint-url "https://fsn1.your-objectstorage.com"
+            --endpoint-url "https://s3.eu-central-003.backblazeb2.com"
 
-          PUBLIC_URL="https://bootc-isos.fsn1.your-objectstorage.com/${ISO_NAME}"
+          PUBLIC_URL="https://bootc-isos.s3.eu-central-003.backblazeb2.com/${ISO_NAME}"
 
           echo ""
           echo "========================================================"
