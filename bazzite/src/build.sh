@@ -51,10 +51,23 @@ systemd-firstboot --timezone UTC
 # This means that /var/tmp is also technically under /run.
 # /run is of course a tmpfs, but set with quite a small size.
 # ostree needs quite a lot of space on /var/tmp for temporary files so /run is not enough.
-# Relocate /var/tmp to /tmp/vartmp to avoid this issue - /tmp seems to be larger.
+# Mount a larger tmpfs to /var/tmp at boot time to avoid this issue.
 rm -rf /var/tmp
-mkdir /tmp/vartmp
-ln -s /tmp/vartmp /var/tmp
+mkdir /var/tmp
+cat > /etc/systemd/system/var-tmp.mount << 'EOF'
+[Unit]
+Description=Larger tmpfs for /var/tmp on live system
+
+[Mount]
+What=tmpfs
+Where=/var/tmp
+Type=tmpfs
+Options=size=50%%,nr_inodes=1m,x-systemd.graceful-option=usrquota
+
+[Install]
+WantedBy=local-fs.target
+EOF
+systemctl enable var-tmp.mount
 
 # Copy in the iso config for image-builder
 mkdir -p /usr/lib/bootc-image-builder
