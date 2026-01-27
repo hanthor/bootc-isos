@@ -20,7 +20,7 @@ xargs flatpak install -y --noninteractive < "$SCRIPT_DIR/flatpaks"
 
 # Install dracut-live and regenerate the initramfs
 dnf install -y dracut-live
-kernel=$(find /usr/lib/modules -maxdepth 1 -type d -printf '%P\n' | grep .)
+kernel=$(kernel-install list --json pretty | jq -r '.[] | select(.has_kernel == true) | .version')
 DRACUT_NO_XATTR=1 dracut -v --force --zstd --reproducible --no-hostonly \
     --add "dmsquash-live dmsquash-live-autooverlay" \
     "/usr/lib/modules/${kernel}/initramfs.img" "${kernel}"
