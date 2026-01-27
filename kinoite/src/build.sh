@@ -27,10 +27,12 @@ dnf install -y livesys-scripts
 sed -i "s/^livesys_session=.*/livesys_session=kde/" /etc/sysconfig/livesys
 systemctl enable livesys.service livesys-late.service
 
+# image-builder needs gcdx64.efi
+dnf install -y grub2-efi-x64-cdboot
+
 # image-builder expects the EFI directory to be in /boot/efi
 mkdir -p /boot/efi
 cp -av /usr/lib/efi/*/*/EFI /boot/efi/
-cp /boot/efi/EFI/fedora/grubx64.efi /boot/efi/EFI/fedora/gcdx64.efi
 
 # needed for image-builder's buildroot
 dnf install -y xorriso isomd5sum squashfs-tools
