@@ -15,19 +15,16 @@ jobs:
           - bluefin-lts
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main
 
       # Some runners have a large /, some of them have an extra /mnt with ~60GiB free space.
       # This action loop-mounts /var/lib/containers to the larger /mnt if available.
       - name: Mount BTRFS for podman storage
-        uses: ublue-os/container-storage-action@911baca08baf30c8654933e9e9723cb399892140
-        with:
-          target-dir: /var/lib/containers
-          mount-opts: compress=zstd:1
-
-      - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        run: bash .github/scripts/mount_btrfs.sh
 
       - name: Install just
         run: sudo apt update && sudo apt install -y just
