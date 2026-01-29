@@ -34,7 +34,7 @@ jobs:
         run: bash .github/scripts/mount_btrfs.sh
 
       - name: Install just and golang
-        run: sudo apt update && sudo apt install -y just golang && apt clean
+        run: sudo apt update && sudo apt install -y just golang && sudo apt clean
 
       - name: Build image-builder container
         run: sudo just build-image-builder
