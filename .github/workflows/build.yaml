@@ -17,6 +17,7 @@ jobs:
           - bluefin-lts
           - debian
           - ubuntu
+          - fedora-payload
 
     steps:
       - name: Checkout repository
