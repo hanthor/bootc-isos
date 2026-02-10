@@ -1,5 +1,6 @@
 image-builder := "image-builder"
 image-builder-dev := "image-builder-dev"
+storage := shell('podman info -f "{{.Store.GraphRoot}}"')
 
 # Helper: returns "--bootc-installer-payload-ref <ref>" or "" if no payload_ref file
 _payload_ref_flag target:
@@ -24,6 +25,8 @@ build-image-builder:
         cd image-builder-cli
         git reset --hard cf20ed6a417c5e4dd195b34967cd2e4d5dc7272f
     fi
+    # Apply fix for /dev mount failure in privileged containers
+    sed -i '/mount.*devtmpfs.*devtmpfs.*\/dev/,/return err/ s/return err/log.Printf("check: failed to mount \/dev: %v", err)/' pkg/setup/setup.go
     # if go is not in PATH, install via brew and use the full brew path
     if ! command -v go &> /dev/null; then
         if [ -d "/home/linuxbrew/.linuxbrew" ]; then
@@ -40,13 +43,14 @@ build-image-builder:
     $GO_BIN get github.com/osbuild/blueprint@v1.22.0
     # GOPROXY=direct so we always fetch the latest bootc-generic-iso-dev branch
     GOPROXY=direct $GO_BIN mod tidy
-    podman build --no-cache -t {{image-builder-dev}} .
+    podman build -t {{image-builder-dev}} .
 
 iso-in-container target:
     just container {{target}}
     mkdir -p output
     podman run --rm --privileged \
-        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        -v {{storage}}:{{storage}} \
         -v ./output:/output:Z \
+        --entrypoint /bin/bash \
         {{image-builder-dev}} \
-        build --output-dir /output --bootc-ref containers-storage:localhost/{{target}}-installer --bootc-default-fs ext4 `just _payload_ref_flag {{target}}` bootc-generic-iso
+        -c "rm -rf /var/lib/containers/storage && ln -s {{storage}} /var/lib/containers/storage && /usr/bin/image-builder build --output-dir /output --bootc-ref containers-storage:localhost/{{target}}-installer --bootc-default-fs ext4 `just _payload_ref_flag {{target}}` bootc-generic-iso"
