@@ -75,6 +75,25 @@ iso-in-container target:
         {{image-builder-dev}} \
         --output-directory /output --export bootiso - < output/manifest-patched.json
 
+    # Rename ISO
+    echo "Renaming ISO..."
+    REF="localhost/{{target}}-installer"
+    # Extract VERSION_ID from os-release. We use /etc/os-release as the standard path.
+    # Note: The image might not have 'jq' or other tools, so sourcing is safest.
+    # We use --security-opt label=disable to avoid SELinux permission issues with shared libraries
+    VERSION_ID=$(podman run --rm --security-opt label=disable "$REF" sh -c '. /etc/os-release && echo $VERSION_ID')
+    # Extract architecture
+    ARCH=$(podman run --rm --security-opt label=disable "$REF" uname -m)
+    
+    # Construct new filename
+    # Format: bootc-image-name-version-bootc-generic-iso-arch.iso
+    # We use {{target}} as the image name part (e.g., bluefin-lts)
+    ISO_NAME="bootc-{{target}}-${VERSION_ID}-bootc-generic-iso-${ARCH}.iso"
+    
+    echo "Moving output/bootiso/install.iso to output/${ISO_NAME}"
+    mv output/bootiso/install.iso "output/${ISO_NAME}"
+    echo "Build complete! ISO available at: output/${ISO_NAME}"
+
 run-iso target:
     #!/usr/bin/bash
     set -eoux pipefail
