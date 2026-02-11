@@ -1,6 +1,5 @@
 image-builder := "image-builder"
 image-builder-dev := "image-builder-dev"
-storage := shell('podman info -f "{{.Store.GraphRoot}}"')
 
 # Helper: returns "--bootc-installer-payload-ref <ref>" or "" if no payload_ref file
 _payload_ref_flag target:
@@ -43,14 +42,74 @@ build-image-builder:
     $GO_BIN get github.com/osbuild/blueprint@v1.22.0
     # GOPROXY=direct so we always fetch the latest bootc-generic-iso-dev branch
     GOPROXY=direct $GO_BIN mod tidy
-    podman build -t {{image-builder-dev}} .
+    podman build --security-opt label=disable --security-opt seccomp=unconfined -t {{image-builder-dev}} .
 
 iso-in-container target:
+    #!/bin/bash
+    set -euo pipefail
     just container {{target}}
     mkdir -p output
+
+    PAYLOAD_FLAG="$(just _payload_ref_flag {{target}})"
+
+    # Generate the osbuild manifest
+    echo "Manifest generation step"
     podman run --rm --privileged \
-        -v {{storage}}:{{storage}} \
-        -v ./output:/output:Z \
-        --entrypoint /bin/bash \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        --entrypoint /usr/bin/image-builder \
         {{image-builder-dev}} \
-        -c "rm -rf /var/lib/containers/storage && ln -s {{storage}} /var/lib/containers/storage && /usr/bin/image-builder build --output-dir /output --bootc-ref containers-storage:localhost/{{target}}-installer --bootc-default-fs ext4 `just _payload_ref_flag {{target}}` bootc-generic-iso"
+        manifest --bootc-ref localhost/{{target}}-installer --bootc-default-fs ext4 $PAYLOAD_FLAG bootc-generic-iso \
+        > output/manifest.json
+
+    # Patch manifest to add remove-signatures to org.osbuild.skopeo stages
+    echo "Patching manifest to remove signatures from skopeo stages"
+    jq '(.pipelines[] | .stages[]? | select(.type == "org.osbuild.skopeo") | .options) += {"remove-signatures": true}' \
+        output/manifest.json > output/manifest-patched.json
+
+    echo "Image building step"
+    podman run --rm --privileged \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        -v ./output:/output:Z \
+        -i \
+        --entrypoint /usr/bin/osbuild \
+        {{image-builder-dev}} \
+        --output-directory /output --export bootiso - < output/manifest-patched.json
+
+run-iso target:
+    #!/usr/bin/bash
+    set -eoux pipefail
+    image_name="bootiso/install.iso"
+    if [ ! -f "output/${image_name}" ]; then
+         image_name=$(ls output/bootc-{{target}}*.iso 2>/dev/null | head -n 1 | xargs basename)
+    fi
+
+
+
+    # Determine which port to use
+    port=8006;
+    while grep -q :${port} <<< $(ss -tunalp); do
+        port=$(( port + 1 ))
+    done
+    echo "Using Port: ${port}"
+    echo "Connect to http://localhost:${port}"
+    run_args=()
+    run_args+=(--rm --privileged)
+    run_args+=(--pull=always)
+    run_args+=(--publish "127.0.0.1:${port}:8006")
+    run_args+=(--env "CPU_CORES=4")
+    run_args+=(--env "RAM_SIZE=8G")
+    run_args+=(--env "DISK_SIZE=64G")
+    run_args+=(--env "BOOT_MODE=windows_secure")
+    run_args+=(--env "TPM=Y")
+    run_args+=(--env "GPU=Y")
+    run_args+=(--device=/dev/kvm)
+    run_args+=(--volume "${PWD}/output/${image_name}":"/boot.iso")
+    run_args+=(ghcr.io/qemus/qemu)
+    xdg-open http://localhost:${port} &
+    podman run "${run_args[@]}"
+    echo "Connect to http://localhost:${port}"
+
+dev target:
+    just build-image-builder
+    just iso-in-container {{target}}
+    just run-iso {{target}}

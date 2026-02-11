@@ -63,6 +63,7 @@ SPECS=(
     "anaconda-webui"
     "firefox"
     "openssh-server"
+    "fuse-overlayfs"
 )
 
 dnf copr enable -y jreilly1821/anaconda-webui
@@ -234,3 +235,14 @@ cp /src/iso.yaml /usr/lib/bootc-image-builder/iso.yaml
 
 # Clean up dnf cache to save space
 dnf clean all
+
+# Configure storage.conf to use fuse-overlayfs
+# This is required for Anaconda to deploy the container image on the live ISO
+if [ ! -f /etc/containers/storage.conf ] && [ -f /usr/share/containers/storage.conf ]; then
+    cp /usr/share/containers/storage.conf /etc/containers/storage.conf
+fi
+
+sed -i 's|^# mount_program = "/usr/bin/fuse-overlayfs"|mount_program = "/usr/bin/fuse-overlayfs"|' /etc/containers/storage.conf
+if ! grep -q "^mount_program = \"/usr/bin/fuse-overlayfs\"" /etc/containers/storage.conf; then
+     sed -i 's|^# mount_program = .*|mount_program = "/usr/bin/fuse-overlayfs"|' /etc/containers/storage.conf
+fi
